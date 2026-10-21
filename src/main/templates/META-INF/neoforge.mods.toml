@@ -1,5 +1,5 @@
 # This is the metadata file of the mod, read by NeoForge.
-# ${...} placeholders are filled in by Gradle from gradle.properties.
+# Placeholders like mod_id are substituted from gradle.properties.
 
 modLoader="javafml"
 loaderVersion="[1,)"
