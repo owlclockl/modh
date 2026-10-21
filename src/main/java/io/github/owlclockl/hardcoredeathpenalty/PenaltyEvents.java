@@ -6,7 +6,8 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 import io.github.owlclockl.hardcoredeathpenalty.command.PenaltyCommands;
 
@@ -43,13 +44,17 @@ public final class PenaltyEvents {
         if (player.level().getServer() == null) {
             return;
         }
-        PenaltySavedData storage = PenaltySavedData.get(player.level().getServer());
-        PenaltyService.applyHearts(player, storage.get(player.getUUID()));
+        PenaltyService.scheduleRespawnFix(player.level().getServer(), player.getUUID());
     }
 
     @SubscribeEvent
-    public static void onServerTick(ServerTickEvent.Post event) {
-        PenaltyService.handleServerTick(event.getServer());
+    public static void onServerStarted(ServerStartedEvent event) {
+        PenaltyService.startOnlineWatcher(event.getServer());
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        PenaltyService.stopOnlineWatcher(event.getServer());
     }
 
     @SubscribeEvent

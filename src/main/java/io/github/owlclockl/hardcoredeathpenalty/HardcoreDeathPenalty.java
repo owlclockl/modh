@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 /**
  * Fully server-side mod.
  * <p>
- * Death = temporary real-time ban + lost hearts. Lost hearts come back after a
- * daily login streak.
+ * Death = a real-time spectator period + lost hearts. Lost hearts come back
+ * after a daily login streak.
  */
 @Mod(HardcoreDeathPenalty.MODID)
 public final class HardcoreDeathPenalty {

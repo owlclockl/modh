@@ -14,13 +14,13 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
-    // ------------------------------------------------------------------ ban
-    public static final ModConfigSpec.BooleanValue BAN_ENABLED;
-    public static final ModConfigSpec.IntValue BAN_DAYS;
-    public static final ModConfigSpec.IntValue BAN_MINUTES;
+    // -------------------------------------------------------------- spectator
+    public static final ModConfigSpec.BooleanValue SPECTATOR_ENABLED;
+    public static final ModConfigSpec.IntValue SPECTATOR_DAYS;
+    public static final ModConfigSpec.IntValue SPECTATOR_MINUTES;
+    public static final ModConfigSpec.BooleanValue RETURN_TO_SPAWN;
     public static final ModConfigSpec.BooleanValue ANNOUNCE_DEATH;
     public static final ModConfigSpec.ConfigValue<String> DEATH_ANNOUNCEMENT;
-    public static final ModConfigSpec.ConfigValue<String> BAN_MESSAGE;
 
     // --------------------------------------------------------------- hearts
     public static final ModConfigSpec.BooleanValue LOSE_HEART_ON_DEATH;
@@ -34,42 +34,43 @@ public final class Config {
     public static final ModConfigSpec.ConfigValue<String> TIME_ZONE;
 
     // ------------------------------------------------------------- messages
+    public static final ModConfigSpec.ConfigValue<String> SPECTATOR_START_MESSAGE;
+    public static final ModConfigSpec.ConfigValue<String> SPECTATOR_JOIN_MESSAGE;
+    public static final ModConfigSpec.ConfigValue<String> PUNISHMENT_ENDED_MESSAGE;
     public static final ModConfigSpec.ConfigValue<String> HEART_LOST_MESSAGE;
     public static final ModConfigSpec.ConfigValue<String> STREAK_PROGRESS_MESSAGE;
     public static final ModConfigSpec.ConfigValue<String> HEART_RESTORED_MESSAGE;
 
     static {
         BUILDER.comment(
-                "Death ban.",
-                "After death the player is kicked and cannot join the server until the ban expires.")
-                .push("ban");
-        BAN_ENABLED = BUILDER
-                .comment("Enable the temporary death ban.")
+                "Death punishment.",
+                "After death the player is respawned as a spectator for the configured time.",
+                "When the time is over the player is returned to the game and loses a heart.")
+                .push("spectator");
+        SPECTATOR_ENABLED = BUILDER
+                .comment("Put dead players into spectator mode instead of letting them play.")
                 .define("enabled", true);
-        BAN_DAYS = BUILDER
-                .comment("Ban length in real (not in-game) days. 0 disables the ban.")
+        SPECTATOR_DAYS = BUILDER
+                .comment("How many real (not in-game) days a dead player stays a spectator.")
                 .defineInRange("durationDays", 3, 0, 3650);
-        BAN_MINUTES = BUILDER
+        SPECTATOR_MINUTES = BUILDER
                 .comment(
-                        "Optional ban length in minutes. If greater than 0, it overrides durationDays.",
+                        "Optional spectator time in minutes. If greater than 0, it overrides durationDays.",
                         "Useful for testing. 0 = use durationDays.")
                 .defineInRange("durationMinutes", 0, 0, 5_256_000);
+        RETURN_TO_SPAWN = BUILDER
+                .comment(
+                        "Teleport the player to their respawn point (bed / anchor / world spawn)",
+                        "when the spectator time is over. Recommended: it prevents returning to the game",
+                        "inside a block or high in the air.")
+                .define("returnToSpawn", true);
         ANNOUNCE_DEATH = BUILDER
                 .comment("Broadcast a message to all online players when somebody dies.")
                 .define("announceDeath", true);
         DEATH_ANNOUNCEMENT = BUILDER
-                .comment("Placeholders: {player}, {days}, {until}")
+                .comment("Placeholders: {player}, {days}, {hours}, {minutes}, {until}")
                 .define("deathAnnouncement",
-                        "\u00a78[\u00a7c\u2620\u00a78] \u00a7c{player} \u00a7f\u043f\u043e\u0433\u0438\u0431 \u0438 \u0432\u044b\u0431\u044b\u043b \u043d\u0430 \u00a7e{days}\u00a7f \u0434\u043d.");
-        BAN_MESSAGE = BUILDER
-                .comment(
-                        "Message shown to a player who tries to join while banned.",
-                        "Placeholders: {days}, {hours}, {minutes}, {until}, {required}, {hearts_per_death}")
-                .define("kickMessage",
-                        "\u00a7c\u00a7l\u0412\u044b \u043f\u043e\u0433\u0438\u0431\u043b\u0438!\n"
-                                + "\u00a7r\u00a7f\u0421\u0435\u0440\u0432\u0435\u0440 \u0437\u0430\u043a\u0440\u044b\u0442 \u0434\u043b\u044f \u0432\u0430\u0441 \u0435\u0449\u0451 \u043d\u0430 \u00a7e{days}\u00a7f \u0434. \u00a7e{hours}\u00a7f \u0447. \u00a7e{minutes}\u00a7f \u043c\u0438\u043d.\n"
-                                + "\u00a77\u0412\u044b \u0441\u043c\u043e\u0436\u0435\u0442\u0435 \u0432\u0435\u0440\u043d\u0443\u0442\u044c\u0441\u044f \u00a7e{until}\u00a77.\n"
-                                + "\u00a77\u041f\u043e\u0441\u043b\u0435 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u0438\u044f \u0432\u044b \u043f\u043e\u0442\u0435\u0440\u044f\u0435\u0442\u0435 \u0441\u0435\u0440\u0434\u0446\u0435.");
+                        "\u00a78[\u00a7c\u2620\u00a78] \u00a7c{player} \u00a7f\u043f\u043e\u0433\u0438\u0431 \u0438 \u0441\u0442\u0430\u043b \u043d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u0435\u043b\u0435\u043c \u043d\u0430 \u00a7e{days}\u00a7f \u0434. \u00a7e{hours}\u00a7f \u0447.");
         BUILDER.pop();
 
         BUILDER.comment(
@@ -117,11 +118,28 @@ public final class Config {
                 "Placeholders: {player}, {days}, {hours}, {minutes}, {until},",
                 "{hearts}, {max_hearts}, {lost}, {required}, {streak}, {deaths}, {hearts_per_death}")
                 .push("messages");
+        SPECTATOR_START_MESSAGE = BUILDER
+                .comment("Sent right after death, when the player becomes a spectator.")
+                .define("spectatorStart",
+                        "\u00a7c\u00a7l\u0412\u044b \u043f\u043e\u0433\u0438\u0431\u043b\u0438!\n"
+                                + "\u00a7r\u00a7f\u0422\u0435\u043f\u0435\u0440\u044c \u0432\u044b \u043d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u0435\u043b\u044c \u043d\u0430 \u00a7e{days}\u00a7f \u0434. \u00a7e{hours}\u00a7f \u0447.\n"
+                                + "\u00a77\u0412\u0435\u0440\u043d\u0443\u0442\u044c\u0441\u044f \u0432 \u0438\u0433\u0440\u0443 \u043c\u043e\u0436\u043d\u043e \u00a7e{until}\u00a77.\n"
+                                + "\u00a77\u041f\u043e\u0441\u043b\u0435 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u0438\u044f \u0432\u044b \u043f\u043e\u0442\u0435\u0440\u044f\u0435\u0442\u0435 \u0441\u0435\u0440\u0434\u0446\u0435.");
+        SPECTATOR_JOIN_MESSAGE = BUILDER
+                .comment("Sent when a punished player joins the server while still a spectator.")
+                .define("spectatorJoin",
+                        "\u00a7c\u00a7l\u0412\u044b \u043f\u043e\u0433\u0438\u0431\u043b\u0438!\n"
+                                + "\u00a7r\u00a7f\u0414\u043e \u043a\u043e\u043d\u0446\u0430 \u0440\u0435\u0436\u0438\u043c\u0430 \u043d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u0435\u043b\u044f: \u00a7e{days}\u00a7f \u0434. \u00a7e{hours}\u00a7f \u0447. \u00a7e{minutes}\u00a7f \u043c\u0438\u043d.\n"
+                                + "\u00a77\u0418\u0433\u0440\u0430 \u0441\u043d\u043e\u0432\u0430 \u0431\u0443\u0434\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u00a7e{until}\u00a77.");
+        PUNISHMENT_ENDED_MESSAGE = BUILDER
+                .comment("Sent when the spectator time is over and the player has no lost hearts.")
+                .define("punishmentEnded", "\u00a7a\u0412\u044b \u0441\u043d\u043e\u0432\u0430 \u043c\u043e\u0436\u0435\u0442\u0435 \u0438\u0433\u0440\u0430\u0442\u044c!");
         HEART_LOST_MESSAGE = BUILDER
-                .comment("Sent when a player returns after a death ban.")
+                .comment("Sent when a player returns to the game after the spectator time.")
                 .define("heartLost",
-                        "\u00a7c\u00a7l\u0412\u044b \u043f\u043e\u0442\u0435\u0440\u044f\u043b\u0438 \u0441\u0435\u0440\u0434\u0446\u0435!\n"
-                                + "\u00a7r\u00a7f\u0421\u0435\u0439\u0447\u0430\u0441 \u0443 \u0432\u0430\u0441 \u00a7e{hearts}\u00a7f/\u00a7e{max_hearts}\u00a7f \u0441\u0435\u0440\u0434\u0435\u0446.\n"
+                        "\u00a7a\u00a7l\u0412\u044b \u0441\u043d\u043e\u0432\u0430 \u043c\u043e\u0436\u0435\u0442\u0435 \u0438\u0433\u0440\u0430\u0442\u044c!\n"
+                                + "\u00a7r\u00a7c\u0412\u044b \u043f\u043e\u0442\u0435\u0440\u044f\u043b\u0438 \u0441\u0435\u0440\u0434\u0446\u0435.\n"
+                                + "\u00a7f\u0421\u0435\u0439\u0447\u0430\u0441 \u0443 \u0432\u0430\u0441 \u00a7e{hearts}\u00a7f/\u00a7e{max_hearts}\u00a7f \u0441\u0435\u0440\u0434\u0435\u0446.\n"
                                 + "\u00a77\u0417\u0430\u0445\u043e\u0434\u0438\u0442\u0435 \u043a\u0430\u0436\u0434\u044b\u0439 \u0434\u0435\u043d\u044c \u00a7e{required}\u00a77 \u0434\u043d. \u043f\u043e\u0434\u0440\u044f\u0434, \u0447\u0442\u043e\u0431\u044b \u0432\u0435\u0440\u043d\u0443\u0442\u044c \u0435\u0433\u043e.\n"
                                 + "\u00a77\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441: \u00a7e{streak}\u00a77/\u00a7e{required}\u00a77");
         STREAK_PROGRESS_MESSAGE = BUILDER
@@ -142,13 +160,13 @@ public final class Config {
     }
 
     /**
-     * @return the ban duration in milliseconds.
+     * @return the spectator duration in milliseconds.
      */
-    public static long banDurationMillis() {
-        long minutes = BAN_MINUTES.get();
+    public static long spectatorDurationMillis() {
+        long minutes = SPECTATOR_MINUTES.get();
         if (minutes > 0L) {
             return minutes * 60_000L;
         }
-        return BAN_DAYS.get() * 86_400_000L;
+        return SPECTATOR_DAYS.get() * 86_400_000L;
     }
 }
