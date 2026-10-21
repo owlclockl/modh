@@ -66,7 +66,7 @@ public final class PenaltyService {
                 ban);
         storage.set(playerId, updated);
 
-        if (Config.ANNOUNCE_DEATH.get()) {
+        if (ban && Config.ANNOUNCE_DEATH.get()) {
             long[] parts = TimeUtil.splitDuration(banUntil - now);
             String text = Messages.format(Config.DEATH_ANNOUNCEMENT.get(), Messages.map(
                     "player", player.getName().getString(),

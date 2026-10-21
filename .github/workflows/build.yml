@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   checks: write
 
 jobs:
@@ -71,3 +71,22 @@ jobs:
           name: hardcore-death-penalty
           path: build/libs/*.jar
           if-no-files-found: error
+
+      # Publish the built jar back to the repository, so it can be downloaded
+      # without building the mod locally. Pushes made with GITHUB_TOKEN do not
+      # trigger new workflow runs, so this cannot loop.
+      - name: Commit the built jar
+        if: steps.build.outcome == 'success' && github.event_name == 'push'
+        run: |
+          set -e
+          mkdir -p release
+          cp build/libs/*.jar release/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release
+          if git diff --cached --quiet; then
+            echo "The jar has not changed."
+          else
+            git commit -m "chore: publish built mod jar [skip ci]"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
