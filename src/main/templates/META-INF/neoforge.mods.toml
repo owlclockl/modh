@@ -1,0 +1,38 @@
+# This is the metadata file of the mod, read by NeoForge.
+# Placeholders like mod_id are substituted from gradle.properties.
+
+modLoader="javafml"
+loaderVersion="[1,)"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+description='''
+Серверный мод для хардкорных серверов.
+
+После смерти игрок становится наблюдателем (spectator) на 3 реальных дня.
+Когда срок истекает, он автоматически возвращается в игру, но теряет сердце.
+Чтобы вернуть сердце, нужно заходить на сервер каждый день 7 дней подряд.
+
+Все значения (срок наблюдателя, количество сердец, длительность
+восстановления) настраиваются в конфиге сервера.
+
+Мод работает только на сервере: клиенту его устанавливать не нужно.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
