@@ -43,8 +43,13 @@ jobs:
             let log = '';
             try { log = fs.readFileSync('build.log', 'utf8'); } catch (e) {}
             const all = log.split('\n');
-            const interesting = all.filter(l => /error:|FAILURE|Caused by:|Could not|What went wrong|Execution failed|Unresolved|Could not resolve|> Task .* FAILED|Exception|e: |startup failed|error\b/i.test(l));
-            const text = [...interesting.slice(-40), '--- last 40 lines ---', ...all.slice(-40)].join('\n').slice(-60000);
+            const picked = [];
+            all.forEach((line, i) => {
+              if (/error:|startup failed|What went wrong|Could not resolve/i.test(line)) {
+                picked.push(...all.slice(i, i + 7));
+              }
+            });
+            const text = [...picked.slice(-200), '--- last 40 lines ---', ...all.slice(-40)].join('\n').slice(-60000);
             await github.rest.checks.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
