@@ -15,6 +15,7 @@ import net.minecraft.world.level.GameType;
  * @param deaths             total amount of deaths recorded by the mod
  * @param lastDeath          epoch millis of the last death
  * @param modeRestorePending {@code true} if the player's real game mode still has to be restored
+ * @param welcomePending     {@code true} if the player still has to be told that the punishment is over
  * @param restoreGameMode    the game mode to restore after the spectator time is over
  */
 public record PlayerPenalty(
@@ -25,12 +26,13 @@ public record PlayerPenalty(
         int deaths,
         long lastDeath,
         boolean modeRestorePending,
+        boolean welcomePending,
         GameType restoreGameMode) {
 
     public static final GameType DEFAULT_MODE = GameType.SURVIVAL;
 
     public static final PlayerPenalty EMPTY = new PlayerPenalty(
-            0L, 0, 0, Long.MIN_VALUE, 0, 0L, false, DEFAULT_MODE);
+            0L, 0, 0, Long.MIN_VALUE, 0, 0L, false, false, DEFAULT_MODE);
 
     private static final Codec<GameType> GAME_MODE_CODEC = Codec.STRING.xmap(
             PlayerPenalty::parseGameMode, GameType::getName);
@@ -43,6 +45,7 @@ public record PlayerPenalty(
             Codec.INT.optionalFieldOf("deaths", 0).forGetter(PlayerPenalty::deaths),
             Codec.LONG.optionalFieldOf("last_death", 0L).forGetter(PlayerPenalty::lastDeath),
             Codec.BOOL.optionalFieldOf("mode_restore_pending", false).forGetter(PlayerPenalty::modeRestorePending),
+            Codec.BOOL.optionalFieldOf("welcome_pending", false).forGetter(PlayerPenalty::welcomePending),
             GAME_MODE_CODEC.optionalFieldOf("restore_game_mode", DEFAULT_MODE).forGetter(PlayerPenalty::restoreGameMode)
     ).apply(instance, PlayerPenalty::new));
 
@@ -65,35 +68,47 @@ public record PlayerPenalty(
     }
 
     /**
-     * @return {@code true} if the player still has punishment data to process.
+     * @return {@code true} if the spectator time is set, no matter if it is over already.
      */
     public boolean hasPunishment() {
-        return this.spectatorUntil > 0L || this.modeRestorePending;
+        return this.spectatorUntil > 0L;
+    }
+
+    /**
+     * @return {@code true} if the return from the spectator mode still has to be processed.
+     */
+    public boolean needsFinish(long now) {
+        return !isPunished(now) && (hasPunishment() || this.welcomePending);
     }
 
     public PlayerPenalty withSpectatorUntil(long value) {
         return new PlayerPenalty(value, this.heartsLost, this.streak, this.lastDay, this.deaths, this.lastDeath,
-                this.modeRestorePending, this.restoreGameMode);
+                this.modeRestorePending, this.welcomePending, this.restoreGameMode);
     }
 
     public PlayerPenalty withHeartsLost(int value) {
         return new PlayerPenalty(this.spectatorUntil, value, this.streak, this.lastDay, this.deaths, this.lastDeath,
-                this.modeRestorePending, this.restoreGameMode);
+                this.modeRestorePending, this.welcomePending, this.restoreGameMode);
     }
 
     public PlayerPenalty withStreak(int value) {
         return new PlayerPenalty(this.spectatorUntil, this.heartsLost, value, this.lastDay, this.deaths, this.lastDeath,
-                this.modeRestorePending, this.restoreGameMode);
+                this.modeRestorePending, this.welcomePending, this.restoreGameMode);
     }
 
     public PlayerPenalty withLastDay(long value) {
         return new PlayerPenalty(this.spectatorUntil, this.heartsLost, this.streak, value, this.deaths, this.lastDeath,
-                this.modeRestorePending, this.restoreGameMode);
+                this.modeRestorePending, this.welcomePending, this.restoreGameMode);
     }
 
     public PlayerPenalty withModeRestorePending(boolean value) {
         return new PlayerPenalty(this.spectatorUntil, this.heartsLost, this.streak, this.lastDay, this.deaths, this.lastDeath,
-                value, this.restoreGameMode);
+                value, this.welcomePending, this.restoreGameMode);
+    }
+
+    public PlayerPenalty withWelcomePending(boolean value) {
+        return new PlayerPenalty(this.spectatorUntil, this.heartsLost, this.streak, this.lastDay, this.deaths, this.lastDeath,
+                this.modeRestorePending, value, this.restoreGameMode);
     }
 
     /**
@@ -102,6 +117,6 @@ public record PlayerPenalty(
      */
     public PlayerPenalty cleared() {
         return new PlayerPenalty(0L, 0, 0, this.lastDay, this.deaths, this.lastDeath,
-                this.modeRestorePending, this.restoreGameMode);
+                this.modeRestorePending, false, this.restoreGameMode);
     }
 }

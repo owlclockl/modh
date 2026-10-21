@@ -29,6 +29,9 @@ public final class PenaltyService {
     public static final int VANILLA_HEARTS = 10;
     public static final double HEALTH_PER_HEART = 2.0D;
 
+    /** How often the watcher runs, in milliseconds. */
+    private static final long WATCH_INTERVAL_MS = 1_000L;
+
     private static final Identifier HEARTS_MODIFIER_ID = Identifier.fromNamespaceAndPath(
             HardcoreDeathPenalty.MODID, "hearts_lost");
 
@@ -39,7 +42,7 @@ public final class PenaltyService {
 
     /**
      * Called when a player dies (before the vanilla death handling is finished).
-     * The player stays dead until they press "Respawn", then {@link #handleRespawn}
+     * The player stays dead until they press "Respawn", then {@link #scheduleRespawnFix}
      * puts them into spectator mode.
      */
     public static void handleDeath(ServerPlayer player) {
@@ -59,13 +62,15 @@ public final class PenaltyService {
             heartsLost = Math.min(maxLostHearts(), heartsLost + Config.HEARTS_PER_DEATH.get());
         }
 
+        long spectatorUntil = duration > 0L ? now + duration : 0L;
         PlayerPenalty updated = new PlayerPenalty(
-                duration > 0L ? now + duration : 0L,
+                spectatorUntil,
                 heartsLost,
                 old.streak(),
                 old.lastDay(),
                 old.deaths() + 1,
                 now,
+                duration > 0L,
                 duration > 0L,
                 realGameMode(player));
         storage.set(playerId, updated);
@@ -77,10 +82,8 @@ public final class PenaltyService {
                     Component.literal(Messages.format(Config.DEATH_ANNOUNCEMENT.get(), placeholders)), false);
         }
 
-        if (duration > 0L) {
-            // Make sure the daily checks run as long as somebody is online.
-            startOnlineWatcher(server);
-        }
+        // Make sure the background checks run while somebody is online.
+        startOnlineWatcher(server);
     }
 
     // ---------------------------------------------------------------- respawn
@@ -99,15 +102,30 @@ public final class PenaltyService {
 
             PenaltySavedData storage = PenaltySavedData.get(server);
             PlayerPenalty penalty = storage.get(playerId);
+            long now = System.currentTimeMillis();
             applyHearts(player, penalty);
 
-            if (penalty.isPunished(System.currentTimeMillis())) {
-                if (!player.isSpectator()) {
-                    player.setGameMode(GameType.SPECTATOR);
-                }
-                send(player, Config.SPECTATOR_JOIN_MESSAGE.get(), punishmentPlaceholders(penalty, System.currentTimeMillis()));
-            } else if (penalty.modeRestorePending() && player.isSpectator()) {
+            if (penalty.isPunished(now)) {
+                forceSpectator(player);
+                send(player, Config.SPECTATOR_JOIN_MESSAGE.get(), punishmentPlaceholders(penalty, now));
+                return;
+            }
+
+            boolean changed = false;
+            if (player.isSpectator()) {
                 player.setGameMode(penalty.restoreGameMode());
+                changed = true;
+            }
+            if (penalty.modeRestorePending()) {
+                penalty = penalty.withModeRestorePending(false);
+                changed = true;
+            }
+            if (changed) {
+                storage.set(playerId, penalty);
+            }
+
+            if (penalty.welcomePending()) {
+                welcomeBack(server, player);
             }
         }));
     }
@@ -129,87 +147,87 @@ public final class PenaltyService {
 
         if (penalty.isPunished(now)) {
             // The spectator period is still running.
-            if (!player.isDeadOrDying() && !player.isSpectator()) {
-                player.setGameMode(GameType.SPECTATOR);
-            }
-            applyHearts(player, penalty);
             if (!player.isDeadOrDying()) {
+                forceSpectator(player);
                 send(player, Config.SPECTATOR_JOIN_MESSAGE.get(), punishmentPlaceholders(penalty, now));
             }
             // A dead player sees the vanilla death screen and becomes a spectator
             // as soon as they press "Respawn" (see scheduleRespawnFix).
+            applyHearts(player, penalty);
             return;
         }
 
-        if (penalty.hasPunishment()) {
+        if (penalty.hasPunishment() || penalty.welcomePending()) {
             // The spectator period ended while the player was away.
             server.schedule(new TickTask(0, () -> finishPunishment(server, playerId)));
             return;
         }
 
         applyHearts(player, penalty);
+
+        if (penalty.modeRestorePending()) {
+            if (!player.isDeadOrDying() && player.isSpectator()) {
+                player.setGameMode(penalty.restoreGameMode());
+            }
+            storage.set(playerId, penalty.withModeRestorePending(false));
+        }
+
         handleDailyVisit(player, penalty, storage);
     }
 
     /**
-     * Counts the visit of the day and sends the matching message.
-     */
-    private static void handleDailyVisit(ServerPlayer player, PlayerPenalty penalty, PenaltySavedData storage) {
-        if (penalty.heartsLost() <= 0) {
-            return;
-        }
-
-        Attendance attendance = updateAttendance(player, penalty);
-        if (!attendance.changed()) {
-            return;
-        }
-
-        storage.set(player.getUUID(), attendance.penalty());
-        if (attendance.restored()) {
-            send(player, Config.HEART_RESTORED_MESSAGE.get(), heartPlaceholders(attendance.penalty()));
-        } else {
-            send(player, Config.STREAK_PROGRESS_MESSAGE.get(), heartPlaceholders(attendance.penalty()));
-        }
-    }
-
-    /**
-     * Ends the spectator period: restores the game mode, brings the player back
-     * to their spawn point and applies the heart penalty for returning.
+     * Ends the spectator period for an online player: restores the game mode,
+     * brings the player back to their spawn point and applies the heart penalty.
      */
     private static void finishPunishment(MinecraftServer server, UUID playerId) {
         PenaltySavedData storage = PenaltySavedData.get(server);
         PlayerPenalty penalty = storage.get(playerId);
-        if (!penalty.hasPunishment()) {
-            return;
-        }
 
         ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-
-        if (player != null) {
-            if (!player.isDeadOrDying()) {
-                if (player.isSpectator()) {
-                    player.setGameMode(penalty.restoreGameMode());
-                }
-                if (Config.RETURN_TO_SPAWN.get() && penalty.modeRestorePending()) {
-                    player = teleportToSpawn(player);
-                }
-                applyHearts(player, penalty);
-            } else {
-                applyHearts(player, penalty);
-            }
-        }
-
-        penalty = penalty.withSpectatorUntil(0L).withModeRestorePending(false);
-        storage.set(playerId, penalty);
-
-        if (player == null || penalty.heartsLost() <= 0) {
-            if (player != null) {
-                send(player, Config.PUNISHMENT_ENDED_MESSAGE.get(), heartPlaceholders(penalty));
-            }
+        if (player == null) {
+            // Nothing to do: the login / respawn handling will finish the job.
             return;
         }
 
-        send(player, Config.HEART_LOST_MESSAGE.get(), heartPlaceholders(penalty));
+        if (player.isDeadOrDying() || player.connection == null) {
+            // The player is still at the death screen. Stop the spectator timer now,
+            // the game mode is restored when they finally respawn.
+            storage.set(playerId, penalty.withSpectatorUntil(0L).withWelcomePending(true));
+            applyHearts(player, penalty);
+            return;
+        }
+
+        if (penalty.modeRestorePending()) {
+            if (player.isSpectator()) {
+                player.setGameMode(penalty.restoreGameMode());
+            }
+            if (Config.RETURN_TO_SPAWN.get()) {
+                player = teleportToSpawn(player);
+            }
+        }
+
+        applyHearts(player, penalty);
+        storage.set(playerId, penalty.withSpectatorUntil(0L).withModeRestorePending(false).withWelcomePending(false));
+        welcomeBack(server, player);
+    }
+
+    /**
+     * Tells the player that the punishment is over, applies the heart loss and
+     * counts the day of the return.
+     */
+    private static void welcomeBack(MinecraftServer server, ServerPlayer player) {
+        UUID playerId = player.getUUID();
+        PenaltySavedData storage = PenaltySavedData.get(server);
+        PlayerPenalty penalty = storage.get(playerId);
+        penalty = penalty.withWelcomePending(false).withModeRestorePending(false);
+        storage.set(playerId, penalty);
+        applyHearts(player, penalty);
+
+        if (penalty.heartsLost() > 0) {
+            send(player, Config.HEART_LOST_MESSAGE.get(), heartPlaceholders(penalty));
+        } else {
+            send(player, Config.PUNISHMENT_ENDED_MESSAGE.get(), heartPlaceholders(penalty));
+        }
         handleDailyVisit(player, penalty, storage);
     }
 
@@ -236,6 +254,12 @@ public final class PenaltyService {
         }
     }
 
+    private static void forceSpectator(ServerPlayer player) {
+        if (!player.isSpectator() && !player.isDeadOrDying()) {
+            player.setGameMode(GameType.SPECTATOR);
+        }
+    }
+
     // --------------------------------------------------------------- watching
 
     private static final Set<MinecraftServer> WATCHED_SERVERS = Collections.newSetFromMap(new WeakHashMap<>());
@@ -255,10 +279,11 @@ public final class PenaltyService {
     }
 
     /**
-     * Runs once per second while at least one player is online.
+     * Runs about once per second while at least one player is online.
      */
     private static final class OnlineWatcher implements Runnable {
         private final MinecraftServer server;
+        private long lastRun;
 
         private OnlineWatcher(MinecraftServer server) {
             this.server = server;
@@ -266,23 +291,28 @@ public final class PenaltyService {
 
         @Override
         public void run() {
+            long now = System.currentTimeMillis();
             boolean keepRunning;
-            try {
-                keepRunning = tick();
-            } catch (RuntimeException e) {
-                HardcoreDeathPenalty.LOGGER.error("Hardcore Death Penalty tick failed", e);
+            if (now - this.lastRun < WATCH_INTERVAL_MS - 100L) {
                 keepRunning = true;
+            } else {
+                this.lastRun = now;
+                try {
+                    keepRunning = tick(now);
+                } catch (RuntimeException e) {
+                    HardcoreDeathPenalty.LOGGER.error("Hardcore Death Penalty tick failed", e);
+                    keepRunning = true;
+                }
             }
 
             if (keepRunning && WATCHED_SERVERS.contains(this.server)) {
-                this.server.schedule(new TickTask(this.server.getTickCount() + 20, this));
+                this.server.schedule(new TickTask(this.server.getTickCount() + 5, this));
             } else {
                 WATCHED_SERVERS.remove(this.server);
             }
         }
 
-        private boolean tick() {
-            long now = System.currentTimeMillis();
+        private boolean tick(long now) {
             List<ServerPlayer> players = new ArrayList<>(this.server.getPlayerList().getPlayers());
             if (players.isEmpty()) {
                 return false;
@@ -290,17 +320,24 @@ public final class PenaltyService {
 
             PenaltySavedData storage = PenaltySavedData.get(this.server);
             for (ServerPlayer player : players) {
+                if (player.connection == null) {
+                    continue;
+                }
+
                 UUID playerId = player.getUUID();
                 PlayerPenalty penalty = storage.get(playerId);
 
                 if (penalty.isPunished(now)) {
-                    if (!player.isSpectator() && !player.isDeadOrDying()) {
-                        player.setGameMode(GameType.SPECTATOR);
-                    }
+                    forceSpectator(player);
                     continue;
                 }
 
-                if (penalty.hasPunishment()) {
+                if (player.isDeadOrDying()) {
+                    // Everything else is handled when the player presses "Respawn".
+                    continue;
+                }
+
+                if (penalty.hasPunishment() || penalty.welcomePending()) {
                     finishPunishment(this.server, playerId);
                     continue;
                 }
@@ -312,6 +349,27 @@ public final class PenaltyService {
     }
 
     // ------------------------------------------------------------- attendance
+
+    /**
+     * Counts the visit of the day and sends the matching message.
+     */
+    private static void handleDailyVisit(ServerPlayer player, PlayerPenalty penalty, PenaltySavedData storage) {
+        if (penalty.heartsLost() <= 0 || player.isDeadOrDying()) {
+            return;
+        }
+
+        Attendance attendance = updateAttendance(player, penalty);
+        if (!attendance.changed()) {
+            return;
+        }
+
+        storage.set(player.getUUID(), attendance.penalty());
+        if (attendance.restored()) {
+            send(player, Config.HEART_RESTORED_MESSAGE.get(), heartPlaceholders(attendance.penalty()));
+        } else {
+            send(player, Config.STREAK_PROGRESS_MESSAGE.get(), heartPlaceholders(attendance.penalty()));
+        }
+    }
 
     /**
      * Counts today as a visit if the day has changed since the last counted visit.

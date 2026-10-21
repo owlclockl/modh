@@ -101,12 +101,12 @@ public final class PenaltyCommands {
 
         for (NameAndId target : targets) {
             PlayerPenalty penalty = storage.get(target.id());
-            if (!penalty.hasPunishment()) {
+            if (!penalty.hasPunishment() && !penalty.welcomePending()) {
                 source.sendSuccess(() -> Component.literal("\u00a77" + target.name()
                         + " \u00a7f\u043d\u0435 \u043d\u0430\u0445\u043e\u0434\u0438\u0442\u0441\u044f \u0432 \u0440\u0435\u0436\u0438\u043c\u0435 \u043d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u0435\u043b\u044f."), false);
                 continue;
             }
-            storage.set(target.id(), penalty.withSpectatorUntil(0L));
+            storage.set(target.id(), penalty.withSpectatorUntil(0L).withWelcomePending(false));
             source.sendSuccess(() -> Component.literal("\u00a7a" + target.name()
                     + " \u00a7f\u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d \u0432 \u0438\u0433\u0440\u0443."), true);
 
@@ -116,6 +116,7 @@ public final class PenaltyCommands {
                 if (online.isSpectator()) {
                     online.setGameMode(penalty.restoreGameMode());
                 }
+                storage.set(target.id(), storage.get(target.id()).withModeRestorePending(false));
             }
             PenaltyService.startOnlineWatcher(server);
         }
