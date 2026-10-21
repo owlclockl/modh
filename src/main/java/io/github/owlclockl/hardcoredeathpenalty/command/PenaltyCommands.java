@@ -39,6 +39,7 @@ public final class PenaltyCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("hdp")
                 .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+                .executes(context -> help(context.getSource()))
                 .then(Commands.literal("status")
                         .executes(context -> statusSelf(context.getSource()))
                         .then(Commands.argument("player", GameProfileArgument.gameProfile())
@@ -56,6 +57,18 @@ public final class PenaltyCommands {
                 .then(Commands.literal("reset")
                         .then(Commands.argument("player", GameProfileArgument.gameProfile())
                                 .executes(context -> reset(context.getSource(), GameProfileArgument.getGameProfiles(context, "player"))))));
+    }
+
+    private static int help(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal("""
+                \u00a78===== \u00a7cHardcore Death Penalty \u00a78=====
+                \u00a7e/hdp status \u00a77- \u0441\u0432\u043e\u0439 \u0441\u0442\u0430\u0442\u0443\u0441
+                \u00a7e/hdp status <\u0438\u0433\u0440\u043e\u043a> \u00a77- \u0441\u0442\u0430\u0442\u0443\u0441 \u0438\u0433\u0440\u043e\u043a\u0430
+                \u00a7e/hdp unban <\u0438\u0433\u0440\u043e\u043a> \u00a77- \u0441\u043d\u044f\u0442\u044c \u0431\u0430\u043d
+                \u00a7e/hdp sethearts <\u0438\u0433\u0440\u043e\u043a> <0-10> \u00a77- \u0437\u0430\u0434\u0430\u0442\u044c \u043f\u043e\u0442\u0435\u0440\u044f\u043d\u043d\u044b\u0435 \u0441\u0435\u0440\u0434\u0446\u0430
+                \u00a7e/hdp reset <\u0438\u0433\u0440\u043e\u043a> \u00a77- \u0441\u0431\u0440\u043e\u0441\u0438\u0442\u044c \u0432\u0441\u0435 \u0448\u0442\u0440\u0430\u0444\u044b
+                """), false);
+        return 1;
     }
 
     private static int statusSelf(CommandSourceStack source) throws CommandSyntaxException {
