@@ -5,8 +5,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 /**
  * Server-side configuration of the mod.
  * <p>
- * The file is created at {@code <world>/serverconfig/hardcore_death_penalty-server.toml}
- * and therefore can be different for every world.
+ * The file is created at {@code config/hardcore_death_penalty-synced.toml}.
+ * A world can override it with {@code <world>/syncedconfig/hardcore_death_penalty-synced.toml}.
  * <p>
  * Any message supports placeholders in curly braces, for example {@code {days}}.
  * Unknown placeholders are left untouched.

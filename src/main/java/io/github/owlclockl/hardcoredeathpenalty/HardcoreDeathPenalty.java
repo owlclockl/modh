@@ -19,7 +19,7 @@ public final class HardcoreDeathPenalty {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public HardcoreDeathPenalty(IEventBus modEventBus, ModContainer modContainer) {
-        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
+        modContainer.registerConfig(ModConfig.Type.SYNCED, Config.SPEC);
         LOGGER.info("Hardcore Death Penalty initialized");
     }
 }

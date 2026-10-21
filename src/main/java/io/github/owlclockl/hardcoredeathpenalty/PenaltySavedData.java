@@ -31,7 +31,8 @@ public class PenaltySavedData extends SavedData {
     public static final SavedDataType<PenaltySavedData> TYPE = new SavedDataType<>(
             Identifier.fromNamespaceAndPath(HardcoreDeathPenalty.MODID, "penalties"),
             PenaltySavedData::new,
-            level -> CODEC);
+            CODEC,
+            null);
 
     private final Map<UUID, PlayerPenalty> penalties = new HashMap<>();
 
