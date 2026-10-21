@@ -53,7 +53,7 @@ public final class PenaltyService {
             heartsLost = Math.min(maxLostHearts(), heartsLost + Config.HEARTS_PER_DEATH.get());
         }
 
-        boolean ban = Config.BAN_ENABLED.get() && Config.BAN_DAYS.get() > 0;
+        boolean ban = Config.BAN_ENABLED.get() && Config.banDurationMillis() > 0L;
         long banUntil = ban ? now + Config.banDurationMillis() : 0L;
 
         PlayerPenalty updated = new PlayerPenalty(

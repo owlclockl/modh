@@ -47,6 +47,7 @@
 [ban]
     enabled = true
     durationDays = 3
+    durationMinutes = 0
     announceDeath = true
     deathAnnouncement = "..."
     kickMessage = "..."
@@ -74,6 +75,7 @@
 | --- | --- | --- |
 | `ban.enabled` | `true` | Включён ли дезбан |
 | `ban.durationDays` | `3` | Длительность бана в реальных днях |
+| `ban.durationMinutes` | `0` | Если больше 0 — длительность бана в минутах (переопределяет `durationDays`, удобно для тестов) |
 | `hearts.loseHeartOnDeath` | `true` | Забирать сердца за смерть |
 | `hearts.heartsPerDeath` | `1` | Сколько сердец забирать за смерть |
 | `hearts.minHearts` | `1` | Минимум сердец, ниже которого нельзя опуститься |

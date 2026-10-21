@@ -17,6 +17,7 @@ public final class Config {
     // ------------------------------------------------------------------ ban
     public static final ModConfigSpec.BooleanValue BAN_ENABLED;
     public static final ModConfigSpec.IntValue BAN_DAYS;
+    public static final ModConfigSpec.IntValue BAN_MINUTES;
     public static final ModConfigSpec.BooleanValue ANNOUNCE_DEATH;
     public static final ModConfigSpec.ConfigValue<String> DEATH_ANNOUNCEMENT;
     public static final ModConfigSpec.ConfigValue<String> BAN_MESSAGE;
@@ -48,6 +49,11 @@ public final class Config {
         BAN_DAYS = BUILDER
                 .comment("Ban length in real (not in-game) days. 0 disables the ban.")
                 .defineInRange("durationDays", 3, 0, 3650);
+        BAN_MINUTES = BUILDER
+                .comment(
+                        "Optional ban length in minutes. If greater than 0, it overrides durationDays.",
+                        "Useful for testing. 0 = use durationDays.")
+                .defineInRange("durationMinutes", 0, 0, 5_256_000);
         ANNOUNCE_DEATH = BUILDER
                 .comment("Broadcast a message to all online players when somebody dies.")
                 .define("announceDeath", true);
@@ -139,6 +145,10 @@ public final class Config {
      * @return the ban duration in milliseconds.
      */
     public static long banDurationMillis() {
+        long minutes = BAN_MINUTES.get();
+        if (minutes > 0L) {
+            return minutes * 60_000L;
+        }
         return BAN_DAYS.get() * 86_400_000L;
     }
 }
