@@ -103,6 +103,12 @@ public final class PenaltyService {
             }
         }
 
+        // In a hardcore world vanilla turns a respawned player into a spectator.
+        // We respawn the player ourselves, but keep this as a safety net.
+        if (player.isSpectator()) {
+            player.setGameMode(GameType.SURVIVAL);
+        }
+
         penalty = penalty.withRestorePending(false);
         storage.set(playerId, penalty);
         applyHearts(player, penalty);
